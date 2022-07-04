@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { useState, useEffect } from 'react';
 import Searchbar from './Searchbar';
 import imagesApi from '../services/imagesApi';
 import ImageGallery from './ImageGallery';
@@ -6,132 +6,104 @@ import Button from './Button';
 import './App.css';
 import Modal from './Modal';
 import Loader from './Loader';
+import { animateScroll as scroll } from 'react-scroll';
 
-export class App extends Component {
-  state = {
-    query: '',
-    page: 1,
-    images: [],
-    error: null,
-    loading: false,
-    status: 'idle',
-    limit: 12,
-    openButton: false,
-    totalHits: 0,
-    largeImageURL: '',
-    showModal: false,
-    imgTags: '',
-  };
+function App() {
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [images, setImages] = useState([]);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState('idle');
+  const [limit, setLimit] = useState(12);
+  const [openButton, setOpenButton] = useState(false);
+  const [totalHits, setTotalHits] = useState(0);
+  const [largeImageURL, setLargeImageUrl] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [imgTags, setImgTags] = useState('');
 
-  componentDidUpdate(prevProps, prevState) {
-    const prevName = prevState.query;
-    const nextName = this.state.query;
-    const differentName = prevName !== nextName;
-
-    const prevPage = prevState.page;
-    const nextPage = this.state.page;
-    const differentPage = prevPage !== nextPage;
-
-    if (differentName || differentPage) {
-      if (differentName) {
-        this.setState({
-          status: 'pending',
-          openButton: false,
-        });
-      }
-
-      imagesApi
-        .fetchImages(nextName, this.state.limit, nextPage)
-        .then(images => {
-          if (!images.hits.length) {
-            return this.setState({
-              openButton: false,
-              status: 'rejected',
-            });
-          }
-
-          if (differentName) {
-            return this.setState({
-              images: [...images.hits],
-              openButton: true,
-              status: 'resolved',
-              totalHits: images.totalHits,
-            });
-          }
-
-          if (differentPage) {
-            return this.setState(state => ({
-              images: [...state.images, ...images.hits],
-              status: 'resolved',
-              openButton: true,
-              loading: false,
-            }));
-          }
-        })
-        .catch(error => this.setState({ error: error, status: 'error' }));
+  useEffect(() => {
+    if (!query) {
+      return;
     }
-  }
+    setStatus('pending');
+    setOpenButton(false);
 
-  toggleModal = () => {
-    this.setState(state => ({
-      showModal: !state.showModal,
-    }));
-  };
+    imagesApi
+      .fetchImages(query, limit, page)
+      .then(images => {
+        if (!images.hits.length) {
+          setStatus('rejected');
+          setOpenButton(false);
+          setLoading(false);
+          return;
+        }
 
-  handleOpenModal = (largeImageURL = '', imgTags = '') => {
-    this.setState({ largeImageURL, imgTags });
-    this.toggleModal();
-  };
+        setImages(prevState => [...prevState, ...images.hits]);
+        setOpenButton(true);
+        setStatus('resolved');
+        setLoading(false);
+        setTotalHits(images.totalHits);
+        scrollWindow();
+        return;
+      })
+      .catch(error => {
+        setError(error);
+        setStatus('error');
+      });
+  }, [query, page, limit]);
 
-  onChangeQuery = ({ query }) => {
-    this.setState({ query: query, page: 1, error: null });
-  };
-
-  loadMore = () => {
-    this.setState(state => {
-      return {
-        page: state.page + 1,
-        loading: true,
-      };
+  const scrollWindow = () => {
+    scroll.scrollToBottom({
+      offset: 0,
+      smooth: true,
     });
   };
 
-  render() {
-    const {
-      images,
-      largeImageURL,
-      imgTags,
-      showModal,
-      status,
-      openButton,
-      loading,
-      totalHits,
-      error,
-      query,
-    } = this.state;
+  const toggleModal = () => {
+    setShowModal(prevState => !prevState);
+  };
 
-    return (
-      <div className="App">
-        <Searchbar onSubmit={this.onChangeQuery} />
-        {status === 'pending' && <Loader />}
-        {status === 'idle' && <h1>введите имя картинки в поле поиска</h1>}
-        {status === 'rejected' && (
-          <h1>изображения с названием "{query}" отсутсвуют</h1>
-        )}
-        {status === 'error' && <h1>{error.message}</h1>}
-        {status === 'resolved' && (
-          <ImageGallery images={images} onClick={this.handleOpenModal} />
-        )}
-        {showModal && (
-          <Modal showModal={this.handleOpenModal}>
-            <img src={largeImageURL} alt={imgTags} />
-          </Modal>
-        )}
-        {loading && <Loader />}
-        {openButton && !loading && images.length !== totalHits && (
-          <Button onClick={this.loadMore} />
-        )}
-      </div>
-    );
-  }
+  const handleOpenModal = (largeImageURL = '', imgTags = '') => {
+    setLargeImageUrl(largeImageURL);
+    setImgTags(imgTags);
+    toggleModal();
+  };
+
+  const onChangeQuery = query => {
+    setQuery(query);
+    setPage(1);
+    setError(null);
+  };
+
+  const loadMore = () => {
+    setLoading(true);
+    setPage(prevState => prevState + 1);
+  };
+
+  return (
+    <div className="App">
+      <Searchbar onSubmit={onChangeQuery} />
+      {status === 'pending' && <Loader />}
+      {status === 'idle' && <h1>введите имя картинки в поле поиска</h1>}
+      {status === 'rejected' && (
+        <h1>изображения с названием "{query}" отсутсвуют</h1>
+      )}
+      {status === 'error' && <h1>{error.message}</h1>}
+      {status === 'resolved' && (
+        <ImageGallery images={images} onClick={handleOpenModal} />
+      )}
+      {showModal && (
+        <Modal showModal={handleOpenModal}>
+          <img src={largeImageURL} alt={imgTags} />
+        </Modal>
+      )}
+      {loading && <Loader />}
+      {openButton && !loading && images.length !== totalHits && (
+        <Button onClick={loadMore} />
+      )}
+    </div>
+  );
 }
+
+export default App;
