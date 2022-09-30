@@ -90,9 +90,7 @@ function App() {
         <h1>изображения с названием "{query}" отсутсвуют</h1>
       )}
       {status === 'error' && <h1>{error.message}</h1>}
-      {status === 'resolved' && (
-        <ImageGallery images={images} onClick={handleOpenModal} />
-      )}
+      {images && <ImageGallery images={images} onClick={handleOpenModal} />}
       {showModal && (
         <Modal showModal={handleOpenModal}>
           <img src={largeImageURL} alt={imgTags} />
